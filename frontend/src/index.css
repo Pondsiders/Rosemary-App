@@ -1,0 +1,75 @@
+@import url("https://use.typekit.net/hye7mqw.css");
+@import "tailwindcss";
+@import "./themes/current.css";
+
+/**
+ * Theme bridge — Maps theme variables to Tailwind's @theme system.
+ *
+ * Theme files (in ./themes/) define --theme-* variables on :root.
+ * This block exposes them as Tailwind colors: bg-background, text-muted, etc.
+ *
+ * To switch themes, edit themes/current.css to import a different theme file.
+ * Vite will hot-reload when the file changes.
+ */
+@theme {
+  /* Surfaces */
+  --color-background: var(--theme-background);
+  --color-surface: var(--theme-surface);
+  --color-composer: var(--theme-composer);
+
+  /* Text */
+  --color-text: var(--theme-text);
+  --color-muted: var(--theme-muted);
+
+  /* Accent */
+  --color-primary: var(--theme-primary);
+
+  /* Components */
+  --color-user-bubble: var(--theme-user-bubble);
+  --color-code-bg: var(--theme-code-bg);
+  --color-border: var(--theme-border);
+
+  /* Semantic */
+  --color-success: var(--theme-success);
+  --color-error: var(--theme-error);
+
+  /* Typography — Tailwind v4 uses --font-serif, not --font-family-serif */
+  --font-serif: "proxima-nova", Georgia, "Times New Roman", serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+}
+
+/**
+ * Base styles
+ *
+ * IMPORTANT: In Tailwind v4, all base styles must be in @layer base.
+ * Styles outside layers have higher specificity than layered utilities,
+ * which would cause utility classes like p-4, px-6 to be overridden.
+ */
+@layer base {
+  body {
+    margin: 0;
+    font-family: var(--font-serif);
+    background-color: var(--theme-background);
+    color: var(--theme-text);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  #root {
+    height: 100%;
+  }
+}
+
+/**
+ * Utility: pulse animation for loading indicators
+ */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 0.4; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+@layer utilities {
+  .animate-pulse-dot {
+    animation: pulse-dot 1.5s ease-in-out infinite;
+  }
+}

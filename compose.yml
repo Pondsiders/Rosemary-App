@@ -1,0 +1,24 @@
+services:
+  rosemary:
+    build:
+      context: ..
+      dockerfile: Rosemary-App/Dockerfile
+    environment:
+      # Neon database (Sage archive + sessions)
+      - DATABASE_URL=${DATABASE_URL}
+      # Forge on primer (embeddings via Ollama)
+      - FORGE_URL=${FORGE_URL}
+      # Logfire
+      - LOGFIRE_TOKEN=${LOGFIRE_TOKEN}
+    dns:
+      - ${TAILSCALE_DNS}
+      - ${PUBLIC_DNS}
+    volumes:
+      # Mount the Rosemary directory so the SDK's CWD exists
+      # and prompt changes don't require a rebuild
+      - /Pondside/Workshop/Projects/Rosemary:/Pondside/Workshop/Projects/Rosemary:ro
+      # Claude credentials — the SDK needs auth to call Anthropic
+      - /home/jefferyharrell/.claude/.credentials.json:/home/rosemary/.claude/.credentials.json:ro
+    ports:
+      - "8779:8779"
+    restart: unless-stopped

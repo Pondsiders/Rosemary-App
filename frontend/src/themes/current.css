@@ -1,0 +1,12 @@
+/**
+ * Current theme — follows OS preference.
+ * Light by default, dark when system prefers dark.
+ */
+@import "./light.css";
+@import "./dark.css";
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+  }
+}

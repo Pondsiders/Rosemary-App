@@ -1,0 +1,18 @@
+/**
+ * Light — ChatGPT-style light theme.
+ * Clean white background, subtle gray surfaces.
+ */
+:root:not(.dark) {
+  --theme-background: #ffffff;
+  --theme-surface: #f7f7f8;
+  --theme-composer: #f7f7f8;
+  --theme-text: #0d0d0d;
+  --theme-muted: #6e6e80;
+  --theme-primary: #10a37f;  /* ChatGPT green */
+  --theme-user-bubble: #f7f7f8;
+  --theme-code-bg: #f7f7f8;
+  --theme-border: rgba(0, 0, 0, 0.1);
+  --theme-success: #10a37f;
+  --theme-error: #ef4444;
+  --theme-font-scale: 1;
+}

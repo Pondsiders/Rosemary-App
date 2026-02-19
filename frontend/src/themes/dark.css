@@ -1,0 +1,18 @@
+/**
+ * Dark — ChatGPT-style dark theme.
+ * Warm dark background, subtle surfaces.
+ */
+:root.dark, .dark {
+  --theme-background: #212121;
+  --theme-surface: #2f2f2f;
+  --theme-composer: #2f2f2f;
+  --theme-text: #ececec;
+  --theme-muted: #b4b4b4;
+  --theme-primary: #10a37f;  /* ChatGPT green */
+  --theme-user-bubble: #2f2f2f;
+  --theme-code-bg: #1a1a1a;
+  --theme-border: rgba(255, 255, 255, 0.1);
+  --theme-success: #10a37f;
+  --theme-error: #ef4444;
+  --theme-font-scale: 1;
+}
