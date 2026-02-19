@@ -14,6 +14,7 @@ dependencies = [
     "logfire[fastapi]>=3.0.0",  # Observability - wraps OTel with nicer API
     "orjson>=3.11.5",
     "asyncpg>=0.30.0",
+    "apscheduler>=3.10.0,<4",  # Scheduler for nights + summaries containers
 ]
 
 [project.optional-dependencies]

@@ -9,10 +9,13 @@ First chat request creates the client.
 import logging
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import AsyncIterator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 import logfire
 
 from rosemary_app.client import client
@@ -85,6 +88,27 @@ async def health() -> dict[str, str | None]:
         "client_connected": str(client.connected),
         "current_session": client.current_session_id[:8] + "..." if client.current_session_id else None,
     }
+
+
+# ── Static file serving (production: built frontend from Docker stage 1) ──
+
+FRONTEND_DIR = Path("/app/frontend/dist")
+
+if FRONTEND_DIR.is_dir():
+    # Serve Vite's hashed asset bundles
+    app.mount("/assets", StaticFiles(directory=FRONTEND_DIR / "assets"), name="static-assets")
+
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str) -> FileResponse:
+        """Serve built frontend — SPA catch-all.
+
+        Try the exact file first (favicon.ico, etc.), fall back to
+        index.html for client-side routing.
+        """
+        file_path = FRONTEND_DIR / full_path
+        if file_path.is_file():
+            return FileResponse(file_path)
+        return FileResponse(FRONTEND_DIR / "index.html")
 
 
 if __name__ == "__main__":

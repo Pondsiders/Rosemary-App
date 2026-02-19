@@ -3,22 +3,48 @@ services:
     build:
       context: ..
       dockerfile: Rosemary-App/Dockerfile
+    command:
+      - python
+      - -m
+      - uvicorn
+      - rosemary_app.main:app
+      - --host=0.0.0.0
+      - --port=8780
+      - --ssl-certfile=/certs/primer.tail8bd569.ts.net.crt
+      - --ssl-keyfile=/certs/primer.tail8bd569.ts.net.key
     environment:
-      # Neon database (Sage archive + sessions)
-      - DATABASE_URL=${DATABASE_URL}
-      # Forge on primer (embeddings via Ollama)
-      - FORGE_URL=${FORGE_URL}
-      # Logfire
-      - LOGFIRE_TOKEN=${LOGFIRE_TOKEN}
+      - TZ=America/Los_Angeles
+      - OLLAMA_URL=http://primer:8200
+      - OLLAMA_MODEL=gemma3:12b-it-qat
+    env_file: .env
     dns:
-      - ${TAILSCALE_DNS}
-      - ${PUBLIC_DNS}
+      - 100.100.100.100  # Tailscale
+      - 1.1.1.1          # Cloudflare
     volumes:
-      # Mount the Rosemary directory so the SDK's CWD exists
-      # and prompt changes don't require a rebuild
       - /Pondside/Workshop/Projects/Rosemary:/Pondside/Workshop/Projects/Rosemary:ro
-      # Claude credentials — the SDK needs auth to call Anthropic
       - /home/jefferyharrell/.claude/.credentials.json:/home/rosemary/.claude/.credentials.json:ro
+      # Session JSONL files — shared between host and container
+      - /home/jefferyharrell/.claude/projects/-Pondside-Workshop-Projects-Rosemary:/home/rosemary/.claude/projects/-Pondside-Workshop-Projects-Rosemary
+      - /Pondside/Basement/Files/certs:/certs:ro
     ports:
-      - "8779:8779"
+      - "8780:8780"
+    restart: unless-stopped
+
+  rosemary-nights:
+    build:
+      context: ..
+      dockerfile: Rosemary-App/Dockerfile
+    command: ["python", "-m", "rosemary_app.nights"]
+    environment:
+      - TZ=America/Los_Angeles
+      - OLLAMA_URL=http://primer:8200
+      - OLLAMA_MODEL=gemma3:12b-it-qat
+    env_file: .env
+    dns:
+      - 100.100.100.100
+      - 1.1.1.1
+    volumes:
+      - /Pondside/Workshop/Projects/Rosemary:/Pondside/Workshop/Projects/Rosemary:ro
+      - /home/jefferyharrell/.claude/.credentials.json:/home/rosemary/.claude/.credentials.json:ro
+      - /home/jefferyharrell/.claude/projects/-Pondside-Workshop-Projects-Rosemary:/home/rosemary/.claude/projects/-Pondside-Workshop-Projects-Rosemary
     restart: unless-stopped

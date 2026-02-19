@@ -12,6 +12,7 @@ frontend/dist/
 .env
 .env.local
 .env.op
+.env.secrets
 
 # IDE
 .vscode/
