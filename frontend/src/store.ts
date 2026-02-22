@@ -47,10 +47,9 @@ export interface Message {
 }
 
 // Attachment (for composer)
-export interface Attachment {
-  type: "image";
-  image: string; // data URL
-}
+export type Attachment =
+  | { type: "image"; image: string } // data URL
+  | { type: "file"; path: string; filename: string }; // uploaded file reference
 
 // -----------------------------------------------------------------------------
 // Store Interface
@@ -135,7 +134,7 @@ export const useGreenhouseStore = create<GreenhouseStore>()(
         }
       }
 
-      // Add text
+      // Add text (including file references baked in)
       parts.push({ type: "text", text: content });
 
       set((state) => {

@@ -17,12 +17,14 @@ router = APIRouter()
 
 DATABASE_URL = os.environ["DATABASE_URL"]
 
-# Claude Code stores sessions as JSONL files.
-# Configurable via env var; default based on the Rosemary project cwd.
+# Claude Code stores sessions as JSONL files at ~/.claude/projects/{cwd-with-dashes}/.
+# Derived from ROSEMARY_CWD so it always matches the agent's working directory.
+_cwd = os.environ.get("ROSEMARY_CWD", "/Pondside/Workshop/Projects/Rosemary")
+_formatted_cwd = os.path.realpath(_cwd).replace("/", "-")
 SESSIONS_DIR = Path(
     os.getenv(
         "SESSIONS_DIR",
-        os.path.expanduser("~/.claude/projects/-Pondside-Workshop-Projects-Rosemary"),
+        os.path.expanduser(f"~/.claude/projects/{_formatted_cwd}"),
     )
 )
 

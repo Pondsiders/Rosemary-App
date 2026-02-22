@@ -14,7 +14,12 @@ RUN npm run build
 FROM python:3.12-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        git \
+        git sudo \
+        curl wget jq less \
+        procps tree file unzip \
+        sqlite3 pandoc poppler-utils \
+        build-essential ca-certificates \
+        imagemagick \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install uv for fast dependency resolution
@@ -42,7 +47,9 @@ COPY --from=frontend-build /build/dist/ /app/frontend/dist/
 # (Tailscale certs, Claude credentials) are readable without chmod.
 RUN useradd --uid 1000 --create-home --shell /bin/bash rosemary \
     && mkdir -p /home/rosemary/.claude \
-    && chown rosemary:rosemary /home/rosemary/.claude
+    && chown rosemary:rosemary /home/rosemary/.claude \
+    && echo 'rosemary ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/rosemary \
+    && chmod 0440 /etc/sudoers.d/rosemary
 USER rosemary
 
 EXPOSE 8780

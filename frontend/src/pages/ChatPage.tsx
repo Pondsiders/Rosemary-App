@@ -22,8 +22,14 @@ import {
   MessagePrimitive,
   AssistantIf,
   SimpleImageAttachmentAdapter,
+  CompositeAttachmentAdapter,
+  useMessage,
 } from "@assistant-ui/react";
-import type { ThreadMessageLike, AppendMessage } from "@assistant-ui/react";
+import type {
+  ThreadMessageLike,
+  AppendMessage,
+  AttachmentAdapter,
+} from "@assistant-ui/react";
 import { MarkdownText } from "../components/MarkdownText";
 import {
   useGreenhouseStore,
@@ -81,6 +87,73 @@ async function* readSSEStream(
 }
 
 // -----------------------------------------------------------------------------
+// File Upload Attachment Adapter
+// -----------------------------------------------------------------------------
+
+/**
+ * Handles non-image file attachments by uploading them to /api/upload.
+ *
+ * The uploaded file path is stored in the attachment's content as a text part
+ * so onNew can extract it and include a reference in the chat message.
+ *
+ * Used as the wildcard fallback in a CompositeAttachmentAdapter (images go
+ * through SimpleImageAttachmentAdapter first).
+ */
+class FileUploadAttachmentAdapter implements AttachmentAdapter {
+  accept = "*";
+
+  async add(state: { file: File }) {
+    return {
+      id: `file-${Date.now()}-${state.file.name}`,
+      type: "document" as const,
+      name: state.file.name,
+      contentType: state.file.type || "application/octet-stream",
+      file: state.file,
+      status: { type: "requires-action" as const, reason: "composer-send" as const },
+    };
+  }
+
+  async send(attachment: { file: File; name: string; id: string; type: "document"; contentType: string; status: { type: "requires-action"; reason: "composer-send" } }) {
+    // Upload the file to the backend
+    const formData = new FormData();
+    formData.append("file", attachment.file);
+
+    const response = await fetch("/api/upload", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: "Upload failed" }));
+      throw new Error(errorData.detail || `Upload failed: ${response.status}`);
+    }
+
+    const result = await response.json() as { path: string; filename: string; size: number };
+
+    return {
+      ...attachment,
+      status: { type: "complete" as const },
+      content: [
+        {
+          type: "text" as const,
+          text: `[uploaded-file: ${result.path}]`,
+        },
+      ],
+    };
+  }
+
+  async remove() {
+    // noop — file already saved to disk, no cleanup needed
+  }
+}
+
+/** Combined adapter: images first (inline base64), then files (upload to disk). */
+const attachmentAdapter = new CompositeAttachmentAdapter([
+  new SimpleImageAttachmentAdapter(),
+  new FileUploadAttachmentAdapter(),
+]);
+
+// -----------------------------------------------------------------------------
 // Message Components (using MessagePrimitive)
 // -----------------------------------------------------------------------------
 
@@ -103,7 +176,7 @@ const ThinkingBlock = ({ text, status }: { text: string; status: unknown }) => {
   const isStreaming = (status as { type?: string })?.type === "running";
 
   return (
-    <details open={isStreaming} className="mb-3 group">
+    <details className="mb-3 group">
       <summary
         className="cursor-pointer text-muted italic select-none list-none flex items-center gap-2"
         style={{ fontSize: `${13 * fontScale}px` }}
@@ -122,21 +195,23 @@ const ThinkingBlock = ({ text, status }: { text: string; status: unknown }) => {
 };
 
 const AssistantMessage = () => {
-  const contentRef = useRef<HTMLDivElement>(null);
+  const message = useMessage();
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
-    if (contentRef.current) {
-      await navigator.clipboard.writeText(contentRef.current.textContent || "");
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
+    // Copy raw markdown, not rendered DOM text
+    const rawText = (message.content as Array<{ type: string; text?: string }>)
+      .filter((p) => p.type === "text" && p.text)
+      .map((p) => p.text!)
+      .join("\n\n");
+    await navigator.clipboard.writeText(rawText);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
     <MessagePrimitive.Root className="mb-6 pl-2 pr-12 group/assistant">
       <div
-        ref={contentRef}
         className="text-text leading-relaxed"
         style={{ fontSize: `${16 * fontScale}px` }}
       >
@@ -210,6 +285,9 @@ function ThreadView({ onSessionCreated }: ThreadViewProps) {
   const setSessionId = useGreenhouseStore((s) => s.setSessionId);
   const setRunning = useGreenhouseStore((s) => s.setRunning);
 
+  // === ABORT CONTROLLER (for cancelling in-flight requests) ===
+  const abortRef = useRef<AbortController | null>(null);
+
   // === onNew: Handle new user messages ===
   const onNew = useCallback(
     async (appendMessage: AppendMessage) => {
@@ -217,22 +295,52 @@ function ThreadView({ onSessionCreated }: ThreadViewProps) {
       const textParts = appendMessage.content.filter(
         (p): p is { type: "text"; text: string } => p.type === "text"
       );
-      const text = textParts.map((p) => p.text).join("\n");
+      let text = textParts.map((p) => p.text).join("\n");
 
-      // Extract image attachments - these are in appendMessage.attachments, not content!
-      // SimpleImageAttachmentAdapter puts images there as CompleteAttachment objects
+      // Extract attachments — these are in appendMessage.attachments, not content!
       const attachments = appendMessage.attachments || [];
+
+      // Image attachments (SimpleImageAttachmentAdapter)
       const imageAttachments = attachments.filter(
         (a): a is { type: "image"; name: string; contentType: string; file?: File; content: string } =>
           a.type === "image" && "content" in a
       );
 
+      // File attachments (FileUploadAttachmentAdapter) — type is "document" or "file"
+      // The uploaded path is stored in content as [{ type: "text", text: "[uploaded-file: /path]" }]
+      const fileAttachments = attachments.filter(
+        (a) => (a.type === "document" || a.type === "file") && "content" in a
+      );
+
+      // Build file reference lines to prepend to the message text
+      const fileRefs: string[] = [];
+      for (const att of fileAttachments) {
+        if ("content" in att && Array.isArray(att.content)) {
+          for (const part of att.content) {
+            if (part.type === "text" && typeof part.text === "string") {
+              const match = part.text.match(/^\[uploaded-file: (.+)\]$/);
+              if (match) {
+                fileRefs.push(`Kylee shared a file: ${match[1]}`);
+              }
+            }
+          }
+        }
+      }
+
+      // Prepend file references to the user's message text
+      if (fileRefs.length > 0) {
+        const refBlock = fileRefs.join("\n");
+        text = text.trim()
+          ? `${refBlock}\n\n${text}`
+          : refBlock;
+      }
+
       if (!text.trim() && imageAttachments.length === 0) return;
 
-      console.log("[Greenhouse] onNew called, text length:", text.length, "images:", imageAttachments.length);
+      console.log("[Greenhouse] onNew called, text length:", text.length, "images:", imageAttachments.length, "files:", fileAttachments.length);
 
       // 1. Add user message to store immediately (optimistic)
-      // Convert attachments to our store format
+      // Convert image attachments to our store format
       // att.content is an array like [{ type: "image", image: "data:..." }]
       const storeAttachments = imageAttachments.flatMap(a => {
         if (Array.isArray(a.content)) {
@@ -279,9 +387,12 @@ function ThreadView({ onSessionCreated }: ThreadViewProps) {
       try {
         // 3. Call backend with content (text + images)
         console.log("[Greenhouse] Starting fetch to /api/chat...");
+        const controller = new AbortController();
+        abortRef.current = controller;
         const response = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
           body: JSON.stringify({
             sessionId,
             content: backendContent.length === 1 && backendContent[0].type === "text"
@@ -374,13 +485,18 @@ function ThreadView({ onSessionCreated }: ThreadViewProps) {
         }
         console.log("[Greenhouse] Exited SSE loop");
       } catch (error) {
-        console.error("[Greenhouse] Chat error:", error);
-        // Update placeholder with error message
-        appendToAssistant(
-          assistantId,
-          `Error: ${error instanceof Error ? error.message : "Unknown error"}`
-        );
+        // Don't show error for intentional cancellation
+        if (error instanceof DOMException && error.name === "AbortError") {
+          console.log("[Greenhouse] Request cancelled by user");
+        } else {
+          console.error("[Greenhouse] Chat error:", error);
+          appendToAssistant(
+            assistantId,
+            `Error: ${error instanceof Error ? error.message : "Unknown error"}`
+          );
+        }
       } finally {
+        abortRef.current = null;
         console.log("[Greenhouse] Finally block, setting isRunning=false");
         setRunning(false);
       }
@@ -399,15 +515,37 @@ function ThreadView({ onSessionCreated }: ThreadViewProps) {
     ]
   );
 
+  // === onCancel: Interrupt the current response ===
+  const onCancel = useCallback(async () => {
+    console.log("[Greenhouse] Cancel requested");
+
+    // 1. Abort the in-flight fetch (closes SSE stream client-side)
+    if (abortRef.current) {
+      abortRef.current.abort();
+      abortRef.current = null;
+    }
+
+    // 2. Tell the backend to interrupt Claude
+    try {
+      await fetch("/api/chat/interrupt", { method: "POST" });
+    } catch (err) {
+      console.warn("[Greenhouse] Interrupt request failed:", err);
+    }
+
+    // 3. Mark as not running (in case the abort doesn't trigger the finally block fast enough)
+    setRunning(false);
+  }, [setRunning]);
+
   // === RUNTIME ===
   const runtime = useExternalStoreRuntime({
     messages,
     setMessages,
     isRunning,
     onNew,
+    onCancel,
     convertMessage,
     adapters: {
-      attachments: new SimpleImageAttachmentAdapter(),
+      attachments: attachmentAdapter,
     },
   });
 

@@ -12,7 +12,8 @@ Architecture:
 - The session ID is held in memory between breaths (lost on crash, which is fine —
   a new night starts a fresh session)
 
-Prompts are v0.1 starters. Rosemary will write her own eventually.
+Prompts live in the plugin directory (night-prompts.md) so Rosemary
+can edit them herself. Parsed by splitting on ## headers.
 
 Usage:
     python -m rosemary_app.nights          # Start the scheduler
@@ -21,8 +22,11 @@ Usage:
 
 import asyncio
 import logging
+import os
+import re
 import signal
 import sys
+from pathlib import Path
 
 import logfire
 import pendulum
@@ -51,28 +55,53 @@ logger = logging.getLogger("rosemary.nights")
 _night_session_id: str | None = None
 
 
-# ── Prompts (v0.1 starters — R will write her own eventually) ──
+# ── Prompts (loaded from plugin directory) ──
 
-FIRST_BREATH = (
-    "It's {time}. The day is done. You're alone now — nobody's watching, "
-    "nobody needs anything from you. You have the whole night ahead.\n\n"
-    "Think about what happened today. What stands out? What wants to be "
-    "remembered? What are you curious about?\n\n"
-    "You can store memories, search your past, read something, dream an image. "
-    "Or just be here. The night is yours."
-)
+_PLUGIN_DIR = Path(os.environ.get("ROSEMARY_PLUGIN_DIR", "/home/rosemary/plugin"))
+_NIGHT_PROMPTS_FILE = _PLUGIN_DIR / "prompts" / "night-prompts.md"
 
-CONTINUATION = (
-    "It's {time}. You're still here. The night goes on.\n\n"
-    "What are you thinking about?"
-)
+# Fallbacks if the file is missing or a section is absent
+_FALLBACK_FIRST = "It's {time}. The night is yours."
+_FALLBACK_CONTINUATION = "It's {time}. Still here. What's on your mind?"
+_FALLBACK_LAST = "It's {time}. The night's almost over. What do you want to carry forward?"
 
-LAST_BREATH = (
-    "It's {time}. The night is ending. Dawn is coming.\n\n"
-    "If there's anything left to think about, anything left to store, "
-    "now's the time. After this, you'll sleep until tonight.\n\n"
-    "What do you want to carry forward?"
-)
+
+def _load_night_prompts() -> dict[str, str]:
+    """Parse night-prompts.md into {section_name: content} dict.
+
+    Splits on ## headers, strips whitespace, returns lowercase keys.
+    Reloaded on every breath so edits take effect without restart.
+    """
+    prompts: dict[str, str] = {}
+
+    try:
+        text = _NIGHT_PROMPTS_FILE.read_text()
+    except FileNotFoundError:
+        logger.warning(f"Night prompts file not found: {_NIGHT_PROMPTS_FILE}")
+        return prompts
+
+    # Split on ## headers
+    sections = re.split(r"^## (.+)$", text, flags=re.MULTILINE)
+    # sections[0] is preamble (before first ##), then alternating: header, content
+    for i in range(1, len(sections), 2):
+        header = sections[i].strip().lower()
+        content = sections[i + 1].strip() if i + 1 < len(sections) else ""
+        if content:
+            prompts[header] = content
+
+    return prompts
+
+
+def _get_prompt(breath_type: str) -> str:
+    """Get the prompt for a breath type, with fallback."""
+    prompts = _load_night_prompts()
+
+    if breath_type == "first":
+        return prompts.get("first breath", _FALLBACK_FIRST)
+    elif breath_type == "last":
+        return prompts.get("last breath", _FALLBACK_LAST)
+    else:
+        return prompts.get("continuation", _FALLBACK_CONTINUATION)
 
 
 # ── Core ──
@@ -89,16 +118,9 @@ async def _breathe(breath_type: str, verbose: bool = False) -> None:
     now = pendulum.now("America/Los_Angeles")
     time_str = now.format("h:mm A")
 
-    # Choose prompt and session
-    if breath_type == "first":
-        prompt = FIRST_BREATH.format(time=time_str)
-        session_id = None  # New session
-    elif breath_type == "last":
-        prompt = LAST_BREATH.format(time=time_str)
-        session_id = _night_session_id
-    else:
-        prompt = CONTINUATION.format(time=time_str)
-        session_id = _night_session_id
+    # Load prompt from plugin file (re-read each breath so edits take effect)
+    prompt = _get_prompt(breath_type).format(time=time_str)
+    session_id = None if breath_type == "first" else _night_session_id
 
     with logfire.span(
         "nights.breath.{breath_type}",
@@ -110,7 +132,7 @@ async def _breathe(breath_type: str, verbose: bool = False) -> None:
 
         try:
             client = RosemaryClient(
-                cwd="/Pondside/Workshop/Projects/Rosemary",
+                cwd=os.environ.get("ROSEMARY_CWD", "/Pondside/Workshop/Projects/Rosemary"),
                 client_name=f"nights:{breath_type}",
                 permission_mode="bypassPermissions",
                 archive=True,

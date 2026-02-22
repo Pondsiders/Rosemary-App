@@ -11,6 +11,7 @@ Session handling:
 RosemaryClient handles everything via the same base class as AlphaClient.
 """
 
+import os
 from typing import Any, AsyncIterator
 
 import logfire
@@ -60,12 +61,15 @@ class GreenhouseClient:
     async def _create_client(self, session_id: str | None) -> None:
         """Create a new RosemaryClient, optionally resuming a session."""
         self._client = RosemaryClient(
-            cwd="/Pondside/Workshop/Projects/Rosemary",
+            cwd=os.environ.get("ROSEMARY_CWD", "/Pondside/Workshop/Projects/Rosemary"),
             client_name="rosemary",
             permission_mode="bypassPermissions",
             mcp_servers={},
             allowed_tools=[
                 "Read", "Write", "WebFetch", "WebSearch", "Task", "Skill",
+            ],
+            disallowed_tools=[
+                "EnterPlanMode", "ExitPlanMode", "AskUserQuestion",
             ],
         )
         await self._client.connect(session_id)

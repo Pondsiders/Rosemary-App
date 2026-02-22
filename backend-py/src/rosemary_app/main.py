@@ -22,6 +22,7 @@ from rosemary_app.client import client
 from rosemary_app.routes.chat import router as chat_router
 from rosemary_app.routes.sessions import router as sessions_router
 from rosemary_app.routes.context import router as context_router
+from rosemary_app.routes.upload import router as upload_router, ensure_uploads_dir
 
 # Suppress harmless "Failed to detach context" warnings from OTel
 # These occur when spans cross async generator boundaries - expected behavior
@@ -47,6 +48,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     Client is created lazily on first request, not at startup.
     """
     print("[Rosemary] Starting up... (client will connect on first request)")
+
+    # Ensure the uploads directory exists at startup
+    ensure_uploads_dir()
 
     yield
 
@@ -78,6 +82,7 @@ app.add_middleware(
 app.include_router(chat_router)
 app.include_router(sessions_router)
 app.include_router(context_router)
+app.include_router(upload_router)
 
 
 @app.get("/health")

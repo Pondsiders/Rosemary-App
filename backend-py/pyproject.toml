@@ -15,6 +15,7 @@ dependencies = [
     "orjson>=3.11.5",
     "asyncpg>=0.30.0",
     "apscheduler>=3.10.0,<4",  # Scheduler for nights + summaries containers
+    "openpyxl>=3.1.0",         # Excel spreadsheet creation for Kylee
 ]
 
 [project.optional-dependencies]

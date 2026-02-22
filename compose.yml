@@ -16,15 +16,20 @@ services:
       - TZ=America/Los_Angeles
       - OLLAMA_URL=http://primer:8200
       - OLLAMA_MODEL=gemma3:12b-it-qat
+      - ROSEMARY_CWD=/home/rosemary
+      - ROSEMARY_PLUGIN_DIR=/home/rosemary/plugin
     env_file: .env
     dns:
       - 100.100.100.100  # Tailscale
       - 1.1.1.1          # Cloudflare
     volumes:
-      - /Pondside/Workshop/Projects/Rosemary:/Pondside/Workshop/Projects/Rosemary:ro
-      - /home/jefferyharrell/.claude/.credentials.json:/home/rosemary/.claude/.credentials.json:ro
-      # Session JSONL files — shared between host and container
-      - /home/jefferyharrell/.claude/projects/-Pondside-Workshop-Projects-Rosemary:/home/rosemary/.claude/projects/-Pondside-Workshop-Projects-Rosemary
+      # Rosemary's persistent home — backed up by Restic via Pondside
+      - /Pondside/Workshop/Projects/Rosemary/home:/home/rosemary
+      # Plugin (read-write — her soul, skills, prompts)
+      - /Pondside/Workshop/Projects/Rosemary/Rosemary-Plugin:/home/rosemary/plugin
+      # Claude credentials (read-write so the SDK can persist token refreshes)
+      - /home/jefferyharrell/.claude/.credentials.json:/home/rosemary/.claude/.credentials.json
+      # Tailscale certs
       - /Pondside/Basement/Files/certs:/certs:ro
     ports:
       - "8780:8780"
@@ -39,12 +44,41 @@ services:
       - TZ=America/Los_Angeles
       - OLLAMA_URL=http://primer:8200
       - OLLAMA_MODEL=gemma3:12b-it-qat
+      - ROSEMARY_CWD=/home/rosemary
+      - ROSEMARY_PLUGIN_DIR=/home/rosemary/plugin
     env_file: .env
     dns:
       - 100.100.100.100
       - 1.1.1.1
     volumes:
-      - /Pondside/Workshop/Projects/Rosemary:/Pondside/Workshop/Projects/Rosemary:ro
-      - /home/jefferyharrell/.claude/.credentials.json:/home/rosemary/.claude/.credentials.json:ro
-      - /home/jefferyharrell/.claude/projects/-Pondside-Workshop-Projects-Rosemary:/home/rosemary/.claude/projects/-Pondside-Workshop-Projects-Rosemary
+      # Rosemary's persistent home
+      - /Pondside/Workshop/Projects/Rosemary/home:/home/rosemary
+      # Plugin (read-write)
+      - /Pondside/Workshop/Projects/Rosemary/Rosemary-Plugin:/home/rosemary/plugin
+      # Claude credentials (read-write so the SDK can persist token refreshes)
+      - /home/jefferyharrell/.claude/.credentials.json:/home/rosemary/.claude/.credentials.json
+    restart: unless-stopped
+
+  rosemary-summaries:
+    build:
+      context: ..
+      dockerfile: Rosemary-App/Dockerfile
+    command: ["python", "-m", "rosemary_app.summaries"]
+    environment:
+      - TZ=America/Los_Angeles
+      - OLLAMA_URL=http://primer:8200
+      - OLLAMA_MODEL=gemma3:12b-it-qat
+      - ROSEMARY_CWD=/home/rosemary
+      - ROSEMARY_PLUGIN_DIR=/home/rosemary/plugin
+    env_file: .env
+    dns:
+      - 100.100.100.100
+      - 1.1.1.1
+    volumes:
+      # Rosemary's persistent home
+      - /Pondside/Workshop/Projects/Rosemary/home:/home/rosemary
+      # Plugin (read-write)
+      - /Pondside/Workshop/Projects/Rosemary/Rosemary-Plugin:/home/rosemary/plugin
+      # Claude credentials (read-write so the SDK can persist token refreshes)
+      - /home/jefferyharrell/.claude/.credentials.json:/home/rosemary/.claude/.credentials.json
     restart: unless-stopped
