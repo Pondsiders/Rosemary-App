@@ -619,7 +619,7 @@ function ThreadView({ onSessionCreated }: ThreadViewProps) {
               </div>
             </ComposerPrimitive.Root>
             <p
-              className="text-right text-muted mt-2"
+              className="text-center sm:text-right text-muted mt-2"
               style={{ fontSize: `${11 * fontScale}px` }}
             >
               Rosemary can make mistakes. Please double-check responses.
