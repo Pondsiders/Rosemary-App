@@ -14,8 +14,10 @@ services:
       - --ssl-keyfile=/certs/primer.tail8bd569.ts.net.key
     environment:
       - TZ=America/Los_Angeles
-      - OLLAMA_URL=http://primer:8200
-      - OLLAMA_MODEL=gemma3:12b-it-qat
+      - OPENAI_BASE_URL=http://jefferys-macbook-pro.tail8bd569.ts.net:1234/v1
+      - OPENAI_API_KEY=not-used-by-local-inference
+      - CHAT_MODEL=gemma-3-12b-it-qat
+      - EMBED_MODEL=text-embedding-nomic-embed-text-v1.5
       - ROSEMARY_CWD=/home/rosemary
       - ROSEMARY_PLUGIN_DIR=/home/rosemary/plugin
     env_file: .env
@@ -42,8 +44,10 @@ services:
     command: ["python", "-m", "rosemary_app.nights"]
     environment:
       - TZ=America/Los_Angeles
-      - OLLAMA_URL=http://primer:8200
-      - OLLAMA_MODEL=gemma3:12b-it-qat
+      - OPENAI_BASE_URL=http://jefferys-macbook-pro.tail8bd569.ts.net:1234/v1
+      - OPENAI_API_KEY=not-used-by-local-inference
+      - CHAT_MODEL=gemma-3-12b-it-qat
+      - EMBED_MODEL=text-embedding-nomic-embed-text-v1.5
       - ROSEMARY_CWD=/home/rosemary
       - ROSEMARY_PLUGIN_DIR=/home/rosemary/plugin
     env_file: .env
@@ -66,8 +70,10 @@ services:
     command: ["python", "-m", "rosemary_app.summaries"]
     environment:
       - TZ=America/Los_Angeles
-      - OLLAMA_URL=http://primer:8200
-      - OLLAMA_MODEL=gemma3:12b-it-qat
+      - OPENAI_BASE_URL=http://jefferys-macbook-pro.tail8bd569.ts.net:1234/v1
+      - OPENAI_API_KEY=not-used-by-local-inference
+      - CHAT_MODEL=gemma-3-12b-it-qat
+      - EMBED_MODEL=text-embedding-nomic-embed-text-v1.5
       - ROSEMARY_CWD=/home/rosemary
       - ROSEMARY_PLUGIN_DIR=/home/rosemary/plugin
     env_file: .env
